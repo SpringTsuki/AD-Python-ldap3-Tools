@@ -1,0 +1,15 @@
+# Active Directory connection and inspection settings.
+# Credentials remain in .env and are intentionally not stored here.
+ldap:
+  host: 192.168.254.10
+  port: 389
+  use_ssl: false
+  authentication: ntlm
+  connect_timeout: 10
+  receive_timeout: 30
+  base_dn: DC=qy,DC=net
+inspection:
+  target_ou: Organization
+  page_size: 500
+  output_stem: ldap_export_organization
+

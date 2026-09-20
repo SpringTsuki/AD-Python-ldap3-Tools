@@ -6,6 +6,10 @@ dist/
 
 # dependencies
 node_modules/
+.venv/
+plan.md
+reports/
+*.egg-info/
 
 # logs
 npm-debug.log*
@@ -30,6 +34,8 @@ yarn.lock
 .idea
 *.iml
 .claude
+__pycache__/
+*.py[cod]
 
 # docs
 Firefly-docs/

@@ -23,7 +23,9 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
-from ldap3 import ALL, NTLM, Connection, Server
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from conn.ldap3_conn import get_connection, get_inspection_settings, get_ldap_settings
 
 try:
     from openpyxl import Workbook
@@ -34,9 +36,6 @@ except ImportError:  # pragma: no cover
 
 # ---------------------------------------------------------------- 配置
 
-DC_IP = "192.168.254.10"
-BASE_DN = "DC=qy,DC=net"
-TARGET_OU = "Organization"           # 只写 OU 名，脚本会自己拼 DN
 SEARCH_SCOPE = "SUBTREE"
 
 OUTPUT_STEM = "ldap_export_organization"
@@ -302,22 +301,24 @@ def main():
     ap.add_argument("--all-attrs", action="store_true",
                     help="导出对象上的全部属性(默认会过滤掉一批技术性属性)")
     ap.add_argument("--outdir", default=".", help="输出目录")
-    ap.add_argument("--ou", default=TARGET_OU, help=f"目标 OU 名(默认 {TARGET_OU})")
+    ap.add_argument("--ou", default=None, help="目标 OU 名(默认读取 config.yaml)")
     args = ap.parse_args()
 
     load_dotenv()
+    ldap_settings = get_ldap_settings()
+    inspection_settings = get_inspection_settings()
     try:
         user = os.environ["LDAP_USER"]
         password = os.environ["LDAP_PASS"]
     except KeyError as e:
         sys.exit(f"[!] .env 缺少变量: {e}")
 
-    ou_dn = f"OU={args.ou},{BASE_DN}"
+    base_dn = ldap_settings["base_dn"]
+    target_ou = args.ou or inspection_settings.get("target_ou", "Organization")
+    ou_dn = f"OU={target_ou},{base_dn}"
 
-    print(f"[*] 连接 DC {DC_IP} ...")
-    server = Server(f"ldap://{DC_IP}", get_info=ALL)
-    conn = Connection(server, user=user, password=password,
-                      authentication=NTLM, auto_bind=True)
+    print(f"[*] 连接 DC {ldap_settings['host']} ...")
+    conn = get_connection()
     print(f"[+] 绑定成功 (bound={conn.bound})")
 
     # 用户: objectCategory=person 可以排除计算机(计算机也是 user 的子类)
@@ -326,7 +327,7 @@ def main():
 
     sets = []
     for label, filt in (("用户", USER_FILTER), ("计算机", COMPUTER_FILTER)):
-        records = search_paged(conn, ou_dn, filt)
+        records = search_paged(conn, ou_dn, filt, int(inspection_settings.get("page_size", PAGE_SIZE)))
         print(f"[+] {label}: {len(records)} 条")
         sets.append((label, filt, records))
 
@@ -359,21 +360,21 @@ def main():
         return sheets
 
     if args.format in ("xlsx", "all"):
-        path = os.path.join(args.outdir, f"{OUTPUT_STEM}_{stamp}.xlsx")
+        path = os.path.join(args.outdir, f"{inspection_settings.get('output_stem', OUTPUT_STEM)}_{stamp}.xlsx")
         write_xlsx(path, build_sheets())
         written.append((path, "xlsx"))
 
     if args.format in ("csv", "all"):
         for label, _, _ in sets:
             attrs, rows = rows_by_label[label]
-            path = os.path.join(args.outdir, f"{OUTPUT_STEM}_{label}_{stamp}.csv")
+            path = os.path.join(args.outdir, f"{inspection_settings.get('output_stem', OUTPUT_STEM)}_{label}_{stamp}.csv")
             write_csv(path, attrs, rows)
             written.append((path, "csv"))
 
     if args.format in ("json", "all"):
         payload = {
             "exported_at": datetime.now().isoformat(),
-            "dc": DC_IP,
+            "dc": ldap_settings["host"],
             "search_base": ou_dn,
             "counts": {label: len(records) for label, _, records in sets},
             "objects": {
@@ -381,7 +382,7 @@ def main():
                 for label, _, _ in sets
             },
         }
-        path = os.path.join(args.outdir, f"{OUTPUT_STEM}_{stamp}.json")
+        path = os.path.join(args.outdir, f"{inspection_settings.get('output_stem', OUTPUT_STEM)}_{stamp}.json")
         write_json(path, payload)
         written.append((path, "json"))
 

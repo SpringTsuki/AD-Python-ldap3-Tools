@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ad-inspector"
+version = "0.1.0"
+description = "Read-only Active Directory inspection toolkit built with ldap3"
+requires-python = ">=3.10"
+dependencies = [
+    "ldap3==2.9.1",
+    "python-dotenv==1.2.3",
+    "PyYAML>=6.0",
+    "openpyxl>=3.1",
+]
+
+[project.scripts]
+ad-inspector = "ad_inspector.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

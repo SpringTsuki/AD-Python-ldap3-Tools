@@ -1,18 +1,15 @@
-from ldap3 import Server, Connection, ALL, NTLM, MODIFY_REPLACE
-import os
+from ldap3 import MODIFY_REPLACE
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from conn.ldap3_conn import get_connection, get_inspection_settings, get_ldap_settings
 
 # ---------- 连接参数 ----------
-DC_IP = '192.168.254.10'
-BASE_DN = 'DC=qy,DC=net'
-TARGET_OU = 'OU=YourOU,' + BASE_DN   # 改成你实际要放用户的 OU
-
-USER = os.environ['LDAP_USER']       # QYNET\Administrator
-PWD  = os.environ['LDAP_PASS']
+BASE_DN = get_ldap_settings()['base_dn']
+TARGET_OU = 'OU=' + get_inspection_settings().get('target_ou', 'YourOU') + ',' + BASE_DN
 
 # ---------- 建立连接（LDAPS） ----------
-server = Server(f'ldaps://{DC_IP}', get_info=ALL)
-conn = Connection(server, user=USER, password=PWD,
-                  authentication=NTLM, auto_bind=True)
+conn = get_connection()
 print('绑定成功:', conn.bound)
 
 # ---------- 1. 创建用户 ----------
